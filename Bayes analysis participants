@@ -1,0 +1,85 @@
+#Baysian Anova
+
+#Concatenate the data from each participant as well as calculate the average number of observations for each participant
+CD = np.concatenate([pData[0], pData[1], pData[2], pData[3], pData[4], pData[5], pData[6], pData[7], pData[8], pData[9], pData[10], pData[11], pData[12], pData[13], pData[14], pData[15], pData[16], pData[17], pData[18]])
+WSampleS = np.mean([pData[0].size, pData[1].size, pData[2].size, pData[3].size, pData[4].size, pData[5].size, pData[6].size, pData[7].size, pData[8].size, pData[9].size, pData[10].size, pData[11].size, pData[12].size, pData[13].size, pData[14].size, pData[15].size, pData[16].size, pData[17].size, pData[18].size])
+print "ffffffffffffffffffffffffffffffffffffffffffffffffff"
+print (CD.size)
+
+
+CDM = np.mean(CD)
+#print (CDM)
+
+# Calculate Anova by hand using the sum of sqaures
+# Total sum of sqaures
+ssT = (np.sum((CD - CDM)**2))
+print ("ssT")
+print (ssT)
+
+#Between subject sum of sqaures
+ssB = (mData - CDM)**2
+ssB2 = ssB * WSampleS
+ssB3 = np.sum(ssB2)
+print ("ssB")
+print (ssB3)
+
+#Within subject sum of sqaures
+ssE = ssT - ssB3
+print ("ssE")
+print (ssE)
+
+#Standardised sum of sqaures
+MssB3 = ssB3/(len(pData) - 1)
+print ("MssB")
+print (MssB3)
+
+MssE = ssE/(CD.size - len(pData))
+print ("MssE")
+print (MssE)
+
+MssT = ssT/CD.size
+print ("MssT")
+print (MssT)
+
+#f - Statisitic
+f = MssB3 / MssE
+print ("F - Statisitic test")
+print (f)
+print ("Check of F - Statisitic test")
+print (stats.f_oneway(pData[0], pData[1], pData[2], pData[3], pData[4], pData[5], pData[6], pData[7], pData[8], pData[9], pData[10], pData[11], pData[12], pData[13], pData[14], pData[15], pData[16], pData[17], pData[18]))
+
+
+
+
+#calculate unexplained variance for each model
+
+
+UnexVarH0 = (ssB3 + ssE) / ssT
+UnexVarH1 = ssE/ssT
+
+
+print ("UnexVarH0")
+print (UnexVarH0)
+print ("UnexVarH1")
+print (UnexVarH1)
+
+#Apply Bic method 
+
+BIC02  = 19 * math.log(UnexVarH0) + 1 * math.log(19)
+BICAlt2  = 19 * math.log(UnexVarH1) + 2 * math.log(19)
+
+
+
+CBIC2 = BICAlt2 - BIC02
+
+print ("Bic 0")
+print (BIC02)
+print ("Bic alt")
+print (BICAlt2)
+print ("Diffrence in BIC")
+print (CBIC2)
+
+EBIC2 = format(math.exp(CBIC2/2), '.5f')
+
+print ('Bays factor')
+print (EBIC2)
