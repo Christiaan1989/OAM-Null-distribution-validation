@@ -1,0 +1,323 @@
+#!/usr/bin/env python2
+# -*- coding: utf-8 -*-
+"""
+Created on Tue May  8 17:37:30 2018
+
+@author: christiaanbecker
+"""
+
+import nipype.interfaces.spm as spm
+import nipype.interfaces.fsl as fsl
+import nilearn.image as image
+from nilearn.input_data import NiftiMasker
+from nilearn.image import new_img_like
+from nilearn.plotting import plot_stat_map
+from nilearn.plotting import plot_roi
+from nilearn import plotting
+from nilearn.masking import compute_epi_mask
+from nilearn.masking import compute_background_mask
+from scipy import stats
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import nibabel as nib
+import matplotlib.mlab as mlab
+from scipy.stats import ks_2samp
+from nilearn.plotting import plot_epi, show
+import seaborn as sns
+from nilearn.masking import apply_mask
+import statsmodels.api as sm
+from scipy.stats import norm
+from numpy import linspace
+from nilearn.masking import apply_mask
+from nilearn import masking
+from nilearn import datasets
+from nilearn.input_data import NiftiLabelsMasker
+from os.path import join as opj
+from nipype.interfaces.io import SelectFiles, DataSink
+from nipype.interfaces.spm import (OneSampleTTestDesign, EstimateModel,
+                                   EstimateContrast, Threshold)
+from nipype.interfaces.utility import IdentityInterface
+from nipype.pipeline.engine import Workflow, Node
+from nipype.interfaces.fsl import Info
+from nipype.algorithms.misc import Gunzip
+import nipype.interfaces.io as nio
+import traits 
+from random import shuffle
+import random
+import nibabel as nb
+import numpy as np
+import sys
+import os
+import argparse
+from nilearn.masking import apply_mask
+import glob
+import itertools
+import math
+
+sns.set(style="whitegrid")
+
+gh = pd.read_excel("MNI AAl.xlsx", sheetname = 0)
+RightHemispherLabels = gh['Right Hemispher Labels'].tolist()
+LeftHemispherLabels = gh['Left Hemispher Labels'].tolist()
+Labels1 = gh['Labels'].tolist()
+
+###########################################Left_Hemisphere##############################################################
+
+AlldataLH = []
+
+def applydataLH(data):
+    masr = []    
+    for i in range(1,45):
+        
+
+        
+        data_pathL = glob.glob ('/Users/christiaanbecker/Internship/Left_ROIS/*_L{}.nii'.format(i))
+        datastrL = (data_pathL[0])
+        c = nib.load(datastrL)
+        AffineReshape = image.resample_to_img(c, data)
+        masked_data = apply_mask(data, AffineReshape)
+        #print ("111111111111111111111111111111111111111")
+        #print (masked_data)
+        masked_data = masked_data[(masked_data != 0)]
+        #print ("22222222222222222222222222222222222222222")
+        #print (masked_data)
+        #print ("qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq")
+        #q = np.mean(masked_data)
+        #q.tolist()
+        #print (q)
+        masr.append(masked_data)
+        
+    return masr
+ 
+for i in range(19):
+    data_path = '/Users/christiaanbecker/Internship/Analysis file/Original subject ISC analysis/Participant{}.nii'.format(i)
+    #data_path = '/Users/christiaanbecker/Internship/Mean_image.nii'
+    data = nib.load(data_path)
+    app = applydataLH(data)
+    AlldataLH.append(app)
+
+
+
+
+###########################################Right_Hemisphere##############################################################
+
+
+AlldataRH = []
+
+def applydataRH(data):
+    masr = []    
+    for i in range(1,45):
+        
+
+        
+        data_pathR = glob.glob ('/Users/christiaanbecker/Internship/Right_ROIS/*_R{}.nii'.format(i))
+        datastrR = (data_pathR[0])
+        c = nib.load(datastrR)
+        AffineReshape = image.resample_to_img(c, data)
+        masked_data = apply_mask(data, AffineReshape)
+        #print ("111111111111111111111111111111111111111")
+        #print (masked_data)
+        masked_data = masked_data[(masked_data != 0)]
+        #print ("22222222222222222222222222222222222222222")
+        #print (masked_data)
+        #print ("qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq")
+        #q = np.mean(masked_data)
+        #q.tolist()
+        #print (q)
+        masr.append(masked_data)
+        
+    return masr
+ 
+for i in range(19):
+    data_path = '/Users/christiaanbecker/Internship/Analysis file/Original subject ISC analysis/Participant{}.nii'.format(i)
+    #data_path = '/Users/christiaanbecker/Internship/Mean_image.nii'
+    data = nib.load(data_path)
+    app = applydataRH(data)
+    AlldataRH.append(app)
+
+
+######################################Data_Preperation###################################################
+
+dF1 = pd.DataFrame(data=AlldataLH, columns = Labels1)
+dF2 = pd.DataFrame(data=AlldataRH, columns = Labels1)
+
+RegionSelecList = []
+DropRegionList = []
+
+
+
+for t in (Labels1):
+
+
+    
+    LeftSelection = dF1[t].tolist()
+    LeftSelectionList = list(itertools.chain.from_iterable(LeftSelection))
+    RightSelection = dF2[t].tolist()
+    RightSelectionList = list(itertools.chain.from_iterable(RightSelection))
+
+
+
+    DropRegionLH = dF1.drop(t, 1)
+    DropRegionRH = dF2.drop(t, 1) 
+
+    FlatLH = DropRegionLH.values.flatten()
+    FlatRH = DropRegionRH.values.flatten()
+    
+    ListComLH = list(itertools.chain.from_iterable(FlatLH))
+    ListComRH = list(itertools.chain.from_iterable(FlatRH))
+
+
+    
+    ConSelec = LeftSelectionList + RightSelectionList
+    RegionSelecList.append(ConSelec)
+    
+    ConDropReg = ListComLH + ListComRH
+    DropRegionList.append(ConDropReg)
+
+
+
+######################################Bayes_Factor###################################################
+
+
+Bayes_Factors = []
+
+for i in range(44):
+
+    #Create PD for each distribution
+    DistRS = np.histogram (RegionSelecList[i], bins=80, range=[-1, 1])
+    DistDR = np.histogram (DropRegionList[i], bins=80, range=[-1, 1])
+    
+    
+    DistRS1 = DistRS[0]
+    DistDR1 = DistDR[0]
+    
+    DistRSArray = np.array(DistRS[0], dtype=float)
+    DistDSArray = np.array(DistDR[0], dtype=float)
+    
+    DistRSS = DistRSArray/len(RegionSelecList[i])
+    
+    
+    
+    ConvertArrayRS = np.array(RegionSelecList[i], dtype=float)
+    ConvertArrayDR = np.array(DropRegionList[i], dtype=float)
+    
+    
+    #Check to see if both PDF sum to 1
+    print "Sum RS"
+    print np.sum(DistRSS)
+    
+    
+    
+    #Some statisitics on the data
+    print ("Mean of data region selection")
+    MeanRS = np.mean(ConvertArrayRS)
+    print (MeanRS)
+    print ("STD of regions selection")
+    StdRS = np.std(ConvertArrayRS)
+    print (StdRS)
+    
+    print ("Mean of data drop region")
+    MeanDR = np.mean(ConvertArrayDR)
+    print (MeanDR)
+    print ("STD of drop region")
+    StdDR = np.std(ConvertArrayDR)
+    print (StdDR)
+    
+    #Define the area under the curve for both the 0H and the alternative hypothesis models
+    ListAlt = []
+    List0 = []
+    
+    for i in range(80):
+        pdfM1 = stats.norm.cdf(DistRS[1][i], loc=MeanRS, scale=StdRS)
+        pdfM2 = stats.norm.cdf(DistRS[1][i + 1], loc=MeanRS, scale=StdRS)
+        prob = abs(pdfM2 - pdfM1)
+        ListAlt.append(prob)
+    
+    for i in range(80):
+        pdfM11 = stats.norm.cdf(DistRS[1][i], loc=MeanDR, scale=StdDR)
+        pdfM22 = stats.norm.cdf(DistRS[1][i + 1], loc=MeanDR, scale=StdDR)
+        prob1 = abs(pdfM22 - pdfM11)
+        List0.append(prob1)
+    
+    
+    #Check to see if the areas under the curve sum to 1   
+    print ("Sum of area for alt model")
+    print (np.sum(ListAlt))
+    
+    print ("Sum of area for 0 model")
+    print (np.sum(List0))
+    
+    
+    #Calcultate the error in each model
+    SterrorAlt = abs(ListAlt - DistRSS)
+    Sterror0 = abs (List0 - DistRSS)
+    
+    
+    #Calcultate the mean error in each model
+    SterrorAltM = np.mean(SterrorAlt)
+    Sterror0M = np.mean(Sterror0)
+    
+    print ('Alt Stderror Mean')
+    print (format(SterrorAltM, '.10f'))
+    print ('0 Stderror Mean')
+    print (format(Sterror0M, '.10f'))
+    
+    
+    #impliment baysian formulas to get the Bays factor
+    BIC0  = 19 * math.log(Sterror0M) + 2 * math.log(19)
+    BICAlt  = 19 * math.log(SterrorAltM) + 2 * math.log(19)
+    
+    CBIC = BICAlt - BIC0
+    
+    print ("Bic 0") 
+    print (BIC0)
+    print ("Bic alt")
+    print (BICAlt)
+    print ("Diffrence in BIC")
+    print (CBIC)
+    
+    EBIC = format(math.exp(CBIC/2), '.25f')
+    
+    print ('Bays factor')
+    print (EBIC)
+    Bayes_Factors.append(EBIC)
+
+print Bayes_Factors
+
+G = np.asarray(Bayes_Factors).reshape(44,)
+
+data = {'Bayes factor': Bayes_Factors}         
+
+FrontalRegions = [ 'Frontal Inf Orb', 'Frontal Inf Oper', 'Rectus', 'Frontal Inf Tri', 'Frontal Mid', 'Frontal Mid Orb', 'Frontal Med Orb', 'Frontal Sup Orb', 'Frontal Sup Medial', 'Frontal Sup', 'Supp Moror Area', 'Precentral', 'Rolandic Oper', 'Insula']
+
+
+
+dfFinal = pd.DataFrame(data = data, index = Labels1)
+
+
+######################################Plot_graphs###################################################
+
+
+
+Frontal = dfFinal[:14]    
+Frontal = Frontal.astype(float)
+
+
+Temporal = dfFinal[14:19]    
+Temporal = Temporal.astype(float)
+Temporal.plot(kind = 'bar', title = 'Temporal Lobe')
+
+Limbic = dfFinal[19:30]    
+Limbic = Limbic.astype(float)
+Limbic.plot(kind = 'bar', title = 'Limbic Lobe')
+
+Parietal = dfFinal[30:37]    
+Parietal = Parietal.astype(float)
+Parietal.plot(kind = 'bar', title = 'Parietal Lobe')
+
+
+Occipital = dfFinal[37:44]    
+Occipital = Occipital.astype(float)
+Occipital.plot(kind = 'bar', title = 'Occipital Lobe')
+
