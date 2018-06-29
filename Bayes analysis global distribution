@@ -1,0 +1,175 @@
+#!/usr/bin/env python2
+# -*- coding: utf-8 -*-
+"""
+Created on Thu May 24 14:50:17 2018
+
+@author: christiaanbecker
+"""
+
+import nilearn.image as image
+from nilearn.input_data import NiftiMasker
+from nilearn.image import new_img_like
+from nilearn.plotting import plot_stat_map
+from nilearn.plotting import plot_roi
+from nilearn import plotting
+from nilearn.image.image import mean_img
+from nilearn.masking import compute_epi_mask
+from nilearn.masking import compute_background_mask
+from scipy import stats
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import nibabel as nib
+import matplotlib.mlab as mlab
+from scipy.stats import ks_2samp
+from nilearn.plotting import plot_epi, show
+import pandas as pd
+from scipy import stats, integrate
+import seaborn as sns
+from nilearn.masking import apply_mask
+import statsmodels.api as sm
+import math
+
+
+
+
+#load the data
+data_path = "/Users/christiaanbecker/Internship/Analysis file/Original subject ISC analysis/InternshipUM_1_0050365func_preproc_isc19x1_corr.nii.gz"
+data = nib.load(data_path)
+f = nib.load(data_path)
+dataAll = f.get_data()
+data1 = f.get_data()
+
+
+
+
+
+#Clean data
+data1  = data1[~np.isnan(data1)]
+data1 = data1[(data1 != 0)]
+
+#Global data
+Z = data1
+
+
+
+#Basian Test comparing our data with a model with a mean of 0
+print ('\n')
+print ("Basian Test comparing our data with a model with a mean of 0")
+print ('\n')
+
+#STD for the 0 model
+print ("STD for 0 model")
+s = (np.sum(Z*Z))/(Z.size-1)
+q = np.sqrt(s)
+
+print (q)
+
+
+
+
+
+#Histogram for Gloabl  data 
+dataAllh = np.histogram (Z, bins=80, range=[-1, 1])
+
+dataArray = dataAllh[0]
+
+NPdataArray = np.array(dataArray, dtype=float)
+
+#Convert histogram to a probability distribution
+p = NPdataArray/Z.size
+
+
+#Check to see if the histogram of data sums to 1
+print ("sum of area under curve for actual data")
+print (np.sum(p))
+
+
+#Some statisitics on the data
+print ("Mean of data")
+Mean = np.mean(Z)
+print (Mean)
+print ("STD of data")
+Std = np.std(Z)
+print (Std)
+
+
+
+#Define the area under the curve for both the 0H and the alternative hypothesis models
+ListAlt = []
+List0 = []
+
+
+for i in range(80):
+    pdfM1 = stats.norm.cdf(dataAllh[1][i], loc=Mean, scale=Std)
+    pdfM2 = stats.norm.cdf(dataAllh[1][i + 1], loc=Mean, scale=Std)
+    prob = abs(pdfM2 - pdfM1)
+    ListAlt.append(prob)
+
+for i in range(80):
+    pdfM11 = stats.norm.cdf(dataAllh[1][i], loc=0, scale=q)
+    pdfM22 = stats.norm.cdf(dataAllh[1][i + 1], loc=0, scale=q)
+    prob1 = abs(pdfM22 - pdfM11)
+    List0.append(prob1)
+
+
+#Check to see if the areas under the curve sum to 1   
+print ("Sum of area for alt model")
+print (np.sum(ListAlt))
+
+print ("Sum of area for 0 model")
+print (np.sum(List0))
+
+
+#Calcultate the error in each model
+SterrorAlt = abs(ListAlt - p)
+Sterror0 = abs (List0 - p)
+
+
+
+#Calcultate the mean error in each model
+SterrorAltM = np.mean(SterrorAlt)
+Sterror0M = np.mean(Sterror0)
+
+print ('Alt Stderror Mean')
+print (format(SterrorAltM, '.10f'))
+print ('0 Stderror Mean')
+print (format(Sterror0M, '.10f'))
+
+
+
+#impliment baysian formulas to get the Bays factor
+BIC0  = 19 * math.log(Sterror0M) + 1 * math.log(19)
+BICAlt  = 19 * math.log(SterrorAltM) + 2 * math.log(19)
+
+CBIC = BICAlt - BIC0
+
+print ("Bic 0") 
+print (BIC0)
+print ("Bic alt")
+print (BICAlt)
+print ("Diffrence in BIC")
+print (CBIC)
+
+EBIC = format(math.exp(CBIC/2), '.25f')
+
+print ('Bays factor')
+print (EBIC)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
